@@ -21,8 +21,6 @@ clap = { version = "4.5", features = ["derive"] }
 # Progress bar
 indicatif = "0.17"
 
-# dotenv for env support
-dotenv = "0.15"
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
