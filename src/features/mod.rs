@@ -60,6 +60,16 @@ fn lights_style(attrs: &Map<String, Value>) -> StyleProps {
     }
 }
 
+fn soundg_style(_attrs: &Map<String, Value>) -> StyleProps {
+    // Soundings are typically rendered as text labels showing depth values
+    // No symbol needed - the depth value itself is displayed
+    StyleProps {
+        ac: None,
+        lc: None,
+        sy: None,
+    }
+}
+
 pub const DEPARE: LayerDef = LayerDef {
     s57_name: "DEPARE",
     table: "depare",
@@ -69,18 +79,11 @@ pub const DEPARE: LayerDef = LayerDef {
     ],
     style_fn: Some(depare_style),
     style_layers: &[
-        StyleLayerDef {
-            id_suffix: "fill",
-            layer_type: StyleLayerType::Fill,
-            colors: &["DEPIT", "DEPVS", "DEPMS", "DEPMD", "DEPDW"],
-            line_width: None,
-        },
-        StyleLayerDef {
-            id_suffix: "line",
-            layer_type: StyleLayerType::Line,
-            colors: &["CHGRD"],
-            line_width: Some(0.5),
-        },
+        StyleLayerDef::new("fill", StyleLayerType::Fill)
+            .with_colors(&["DEPIT", "DEPVS", "DEPMS", "DEPMD", "DEPDW"]),
+        StyleLayerDef::new("line", StyleLayerType::Line)
+            .with_colors(&["CHGRD"])
+            .with_line_width(0.5),
     ],
 };
 
@@ -95,24 +98,12 @@ pub const LNDARE: LayerDef = LayerDef {
     ],
     style_fn: Some(lndare_style),
     style_layers: &[
-        StyleLayerDef {
-            id_suffix: "fill",
-            layer_type: StyleLayerType::Fill,
-            colors: &["LANDA"],
-            line_width: None,
-        },
-        StyleLayerDef {
-            id_suffix: "line",
-            layer_type: StyleLayerType::Line,
-            colors: &["CSTLN"],
-            line_width: Some(2.0),
-        },
-        StyleLayerDef {
-            id_suffix: "symbol",
-            layer_type: StyleLayerType::Symbol,
-            colors: &[],
-            line_width: None,
-        },
+        StyleLayerDef::new("fill", StyleLayerType::Fill)
+            .with_colors(&["LANDA"]),
+        StyleLayerDef::new("line", StyleLayerType::Line)
+            .with_colors(&["CSTLN"])
+            .with_line_width(2.0),
+        StyleLayerDef::new("symbol", StyleLayerType::Symbol),
     ],
 };
 
@@ -129,14 +120,28 @@ pub const LIGHTS: LayerDef = LayerDef {
         ColumnDef::new("OBJNAM", "objnam", ColType::Text),
     ],
     style_fn: Some(lights_style),
-    style_layers: &[StyleLayerDef {
-        id_suffix: "symbol",
-        layer_type: StyleLayerType::Symbol,
-        colors: &[],
-        line_width: None,
-    }],
+    style_layers: &[
+        StyleLayerDef::new("symbol", StyleLayerType::Symbol),
+    ],
+};
+
+pub const SOUNDG: LayerDef = LayerDef {
+    s57_name: "SOUNDG",
+    table: "soundg",
+    columns: &[
+        // DEPTH extracted from geometry Z-coordinate (meters)
+        ColumnDef::new("DEPTH", "depth", ColType::Float),
+        ColumnDef::new("TECSOU", "tecsou", ColType::Int),
+        ColumnDef::new("QUASOU", "quasou", ColType::Int),
+        ColumnDef::new("STATUS", "status", ColType::Int),
+    ],
+    style_fn: Some(soundg_style),
+    style_layers: &[
+        StyleLayerDef::new("symbol", StyleLayerType::Symbol)
+            .with_text("depth", 14.0),
+    ],
 };
 
 pub fn all_layers() -> &'static [&'static LayerDef] {
-    &[&DEPARE, &LNDARE, &LIGHTS]
+    &[&DEPARE, &LNDARE, &LIGHTS, &SOUNDG]
 }

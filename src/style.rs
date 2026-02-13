@@ -17,6 +17,43 @@ pub struct StyleLayerDef {
     pub layer_type: StyleLayerType,
     pub colors: &'static [&'static str],
     pub line_width: Option<f64>,
+    /// Property name to use for text-field (e.g., "depth")
+    pub text_field: Option<&'static str>,
+    /// Text size in pixels
+    pub text_size: Option<f64>,
+}
+
+impl StyleLayerDef {
+    /// Create a new StyleLayerDef with defaults (empty colors, no line width, no text)
+    pub const fn new(id_suffix: &'static str, layer_type: StyleLayerType) -> Self {
+        Self {
+            id_suffix,
+            layer_type,
+            colors: &[],
+            line_width: None,
+            text_field: None,
+            text_size: None,
+        }
+    }
+
+    /// Set the colors for area/line styling
+    pub const fn with_colors(mut self, colors: &'static [&'static str]) -> Self {
+        self.colors = colors;
+        self
+    }
+
+    /// Set the line width
+    pub const fn with_line_width(mut self, width: f64) -> Self {
+        self.line_width = Some(width);
+        self
+    }
+
+    /// Set text field and optional size
+    pub const fn with_text(mut self, field: &'static str, size: f64) -> Self {
+        self.text_field = Some(field);
+        self.text_size = Some(size);
+        self
+    }
 }
 
 pub const THEME_NAMES: &[&str] = &["day", "dusk", "night"];
@@ -76,9 +113,27 @@ pub fn generate_style_json(layers: &[&LayerDef], theme_name: &str, tile_source_u
                 }
                 StyleLayerType::Symbol => {
                     layer["type"] = json!("symbol");
-                    layer["layout"] = json!({
+                    let mut layout = json!({
                         "icon-image": ["get", "SY"],
                     });
+                    
+                    // Add text-field if specified
+                    if let Some(text_field) = sld.text_field {
+                        layout["text-field"] = json!(["to-string", ["round", ["get", text_field]]]);
+                        layout["text-font"] = json!(["Open Sans Regular"]);
+                        layout["text-size"] = json!(sld.text_size.unwrap_or(12.0));
+                        layout["text-anchor"] = json!("top");
+                        layout["text-offset"] = json!([0.0, 0.5]);
+                        
+                        // Add text paint properties
+                        layer["paint"] = json!({
+                            "text-color": "#000000",
+                            "text-halo-color": "#FFFFFF",
+                            "text-halo-width": 1.5,
+                        });
+                    }
+                    
+                    layer["layout"] = layout;
                 }
             }
 

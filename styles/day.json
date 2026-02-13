@@ -146,6 +146,42 @@
       "source": "lights",
       "source-layer": "lights",
       "type": "symbol"
+    },
+    {
+      "id": "soundg_symbol",
+      "layout": {
+        "icon-image": [
+          "get",
+          "SY"
+        ],
+        "text-anchor": "top",
+        "text-field": [
+          "to-string",
+          [
+            "round",
+            [
+              "get",
+              "depth"
+            ]
+          ]
+        ],
+        "text-font": [
+          "Open Sans Regular"
+        ],
+        "text-offset": [
+          0.0,
+          0.5
+        ],
+        "text-size": 14.0
+      },
+      "paint": {
+        "text-color": "#000000",
+        "text-halo-color": "#FFFFFF",
+        "text-halo-width": 1.5
+      },
+      "source": "soundg",
+      "source-layer": "soundg",
+      "type": "symbol"
     }
   ],
   "name": "openenc-day",
@@ -165,6 +201,12 @@
     "lndare": {
       "tiles": [
         "http://localhost:3000/lndare_mvt/{z}/{x}/{y}"
+      ],
+      "type": "vector"
+    },
+    "soundg": {
+      "tiles": [
+        "http://localhost:3000/soundg_mvt/{z}/{x}/{y}"
       ],
       "type": "vector"
     }

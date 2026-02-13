@@ -215,10 +215,11 @@ pub fn build_upsert_sql(def: &LayerDef) -> String {
         layer_cols.join(", ")
     );
 
-    // Placeholders $1..$N, with geom wrapped in ST_SetSRID(ST_GeomFromGeoJSON(...), 4326)
+    // Placeholders $1..$N, with geom wrapped in ST_Force2D(ST_SetSRID(ST_GeomFromGeoJSON(...), 4326))
+    // ST_Force2D strips Z coordinates to ensure 2D geometry (needed for SOUNDG features)
     let mut placeholders: Vec<String> = (1..total).map(|i| format!("${}", i)).collect();
     placeholders.push(format!(
-        "ST_SetSRID(ST_GeomFromGeoJSON(${}), 4326)",
+        "ST_Force2D(ST_SetSRID(ST_GeomFromGeoJSON(${}), 4326))",
         total
     ));
 

@@ -7,7 +7,6 @@ mod style;
 mod util;
 
 use clap::Parser;
-use dotenv::dotenv;
 use gdal::Dataset;
 use gdal::version::VersionInfo;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -17,6 +16,18 @@ use std::env;
 use std::path::PathBuf;
 
 use feature::LayerDef;
+
+/// Initialize GDAL with S-57 specific options
+fn init_gdal() {
+    // Configure GDAL S-57 driver options
+    // ADD_SOUNDG_DEPTH=ON - automatically adds depth from Z coordinates as DEPTH field
+    // SPLIT_MULTIPOINT=ON - splits multipoint soundings into individual points
+    // See: https://gdal.org/drivers/vector/s57.html
+    gdal::config::set_config_option(
+        "OGR_S57_OPTIONS",
+        "RETURN_PRIMITIVES=OFF,RETURN_LINKAGES=OFF,LNAM_REFS=ON,UPDATES=APPLY,SPLIT_MULTIPOINT=ON,RECODE_BY_DSSI=ON,ADD_SOUNDG_DEPTH=ON"
+    ).expect("Failed to set OGR_S57_OPTIONS");
+}
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -136,10 +147,12 @@ async fn process_enc_directory(
 
 #[tokio::main]
 async fn main() {
-    dotenv().ok();
     let args = Args::parse();
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(&args.log_level))
         .init();
+
+    // Initialize GDAL with S-57 options
+    init_gdal();
 
     // Sprite generation mode — no DB or GDAL needed
     if let Some(sprites_output) = &args.sprites_output {
