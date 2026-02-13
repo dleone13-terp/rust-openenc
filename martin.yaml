@@ -1,0 +1,17 @@
+styles:
+  paths:
+    - /styles
+
+sprites:
+  sources:
+    day: /sprites/day
+    dusk: /sprites/dusk
+    night: /sprites/night
+
+fonts:
+  paths:
+    - /fonts
+
+databases:
+  - name: encs
+    connection_string: "postgres://user:password@host:port/database"

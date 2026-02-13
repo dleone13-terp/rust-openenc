@@ -1,0 +1,11 @@
+{
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": null,
+    "chat.tools.terminal.autoApprove": {
+        "cargo build": true,
+        "/^cargo build && timeout 120 cargo run -- --input-dir /workspaces/rust-openenc/ENCS/DE_ENCs/ENC_ROOT --log-level info$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

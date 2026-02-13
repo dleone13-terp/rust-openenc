@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:gdal.org)",
+      "Bash(cargo build:*)",
+      "Bash(docker exec:*)",
+      "WebFetch(domain:maplibre.org)",
+      "WebFetch(domain:github.com)",
+      "Bash(docker ps:*)",
+      "Bash(curl:*)",
+      "Bash(python3 -m json.tool:*)",
+      "Bash(python3:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:codeload.github.com)",
+      "Bash(cargo check:*)",
+      "Bash(find:*)",
+      "Bash(file:*)",
+      "Bash(ls:*)"
+    ]
+  }
+}

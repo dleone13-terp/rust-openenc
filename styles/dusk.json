@@ -1,0 +1,174 @@
+{
+  "glyphs": "http://localhost:3000/font/{fontstack}/{range}",
+  "layers": [
+    {
+      "id": "depare_fill",
+      "paint": {
+        "fill-color": [
+          "case",
+          [
+            "==",
+            [
+              "get",
+              "AC"
+            ],
+            "DEPIT"
+          ],
+          "#234C44",
+          [
+            "==",
+            [
+              "get",
+              "AC"
+            ],
+            "DEPVS"
+          ],
+          "#1E4165",
+          [
+            "==",
+            [
+              "get",
+              "AC"
+            ],
+            "DEPMS"
+          ],
+          "#1D3246",
+          [
+            "==",
+            [
+              "get",
+              "AC"
+            ],
+            "DEPMD"
+          ],
+          "#0F1B21",
+          [
+            "==",
+            [
+              "get",
+              "AC"
+            ],
+            "DEPDW"
+          ],
+          "#000000",
+          "rgba(0,0,0,0)"
+        ]
+      },
+      "source": "depare",
+      "source-layer": "depare",
+      "type": "fill"
+    },
+    {
+      "id": "depare_line",
+      "paint": {
+        "line-color": [
+          "case",
+          [
+            "==",
+            [
+              "get",
+              "LC"
+            ],
+            "CHGRD"
+          ],
+          "#6B7F89",
+          "rgba(0,0,0,0)"
+        ],
+        "line-width": 0.5
+      },
+      "source": "depare",
+      "source-layer": "depare",
+      "type": "line"
+    },
+    {
+      "id": "lndare_fill",
+      "paint": {
+        "fill-color": [
+          "case",
+          [
+            "==",
+            [
+              "get",
+              "AC"
+            ],
+            "LANDA"
+          ],
+          "#40402E",
+          "rgba(0,0,0,0)"
+        ]
+      },
+      "source": "lndare",
+      "source-layer": "lndare",
+      "type": "fill"
+    },
+    {
+      "id": "lndare_line",
+      "paint": {
+        "line-color": [
+          "case",
+          [
+            "==",
+            [
+              "get",
+              "LC"
+            ],
+            "CSTLN"
+          ],
+          "#6B7F89",
+          "rgba(0,0,0,0)"
+        ],
+        "line-width": 2.0
+      },
+      "source": "lndare",
+      "source-layer": "lndare",
+      "type": "line"
+    },
+    {
+      "id": "lndare_symbol",
+      "layout": {
+        "icon-image": [
+          "get",
+          "SY"
+        ]
+      },
+      "source": "lndare",
+      "source-layer": "lndare",
+      "type": "symbol"
+    },
+    {
+      "id": "lights_symbol",
+      "layout": {
+        "icon-image": [
+          "get",
+          "SY"
+        ]
+      },
+      "source": "lights",
+      "source-layer": "lights",
+      "type": "symbol"
+    }
+  ],
+  "name": "openenc-dusk",
+  "sources": {
+    "depare": {
+      "tiles": [
+        "http://localhost:3000/depare_mvt/{z}/{x}/{y}"
+      ],
+      "type": "vector"
+    },
+    "lights": {
+      "tiles": [
+        "http://localhost:3000/lights_mvt/{z}/{x}/{y}"
+      ],
+      "type": "vector"
+    },
+    "lndare": {
+      "tiles": [
+        "http://localhost:3000/lndare_mvt/{z}/{x}/{y}"
+      ],
+      "type": "vector"
+    }
+  },
+  "sprite": "http://localhost:3000/sprite/dusk",
+  "version": 8
+}
