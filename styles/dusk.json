@@ -54,7 +54,7 @@
           "rgba(0,0,0,0)"
         ]
       },
-      "source": "depare",
+      "source": "enc",
       "source-layer": "depare",
       "type": "fill"
     },
@@ -76,7 +76,7 @@
         ],
         "line-width": 0.5
       },
-      "source": "depare",
+      "source": "enc",
       "source-layer": "depare",
       "type": "line"
     },
@@ -97,7 +97,7 @@
           "rgba(0,0,0,0)"
         ]
       },
-      "source": "lndare",
+      "source": "enc",
       "source-layer": "lndare",
       "type": "fill"
     },
@@ -119,94 +119,90 @@
         ],
         "line-width": 2.0
       },
-      "source": "lndare",
+      "source": "enc",
       "source-layer": "lndare",
       "type": "line"
     },
     {
-      "id": "lndare_symbol",
+      "id": "lndare_icon",
       "layout": {
         "icon-image": [
           "get",
           "SY"
         ]
       },
-      "source": "lndare",
+      "source": "enc",
       "source-layer": "lndare",
       "type": "symbol"
     },
     {
-      "id": "lights_symbol",
+      "id": "lights_icon",
       "layout": {
         "icon-image": [
           "get",
           "SY"
         ]
       },
-      "source": "lights",
+      "source": "enc",
       "source-layer": "lights",
       "type": "symbol"
     },
     {
-      "id": "soundg_symbol",
+      "id": "soundg_text",
       "layout": {
-        "icon-image": [
-          "get",
-          "SY"
-        ],
         "text-anchor": "top",
         "text-field": [
           "to-string",
           [
-            "round",
-            [
-              "get",
-              "depth"
-            ]
+            "get",
+            "depth_meters_whole"
           ]
         ],
         "text-font": [
-          "Open Sans Regular"
+          "Roboto Bold"
         ],
         "text-offset": [
           0.0,
           0.5
         ],
-        "text-size": 14.0
+        "text-size": 16.0
       },
       "paint": {
-        "text-color": "#000000",
+        "text-color": [
+          "case",
+          [
+            "==",
+            [
+              "get",
+              "AC"
+            ],
+            "SNDG1"
+          ],
+          "#4C5B63",
+          [
+            "==",
+            [
+              "get",
+              "AC"
+            ],
+            "SNDG2"
+          ],
+          "#8CA6B3",
+          "rgba(0,0,0,0)"
+        ],
         "text-halo-color": "#FFFFFF",
-        "text-halo-width": 1.5
+        "text-halo-width": 2.5
       },
-      "source": "soundg",
+      "source": "enc",
       "source-layer": "soundg",
       "type": "symbol"
     }
   ],
   "name": "openenc-dusk",
   "sources": {
-    "depare": {
+    "enc": {
       "tiles": [
-        "http://localhost:3000/depare_mvt/{z}/{x}/{y}"
-      ],
-      "type": "vector"
-    },
-    "lights": {
-      "tiles": [
-        "http://localhost:3000/lights_mvt/{z}/{x}/{y}"
-      ],
-      "type": "vector"
-    },
-    "lndare": {
-      "tiles": [
-        "http://localhost:3000/lndare_mvt/{z}/{x}/{y}"
-      ],
-      "type": "vector"
-    },
-    "soundg": {
-      "tiles": [
-        "http://localhost:3000/soundg_mvt/{z}/{x}/{y}"
+        "http://localhost:3000/enc_mvt/{z}/{x}/{y}"
       ],
       "type": "vector"
     }

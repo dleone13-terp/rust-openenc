@@ -3,14 +3,20 @@ use std::path::Path;
 
 use log::info;
 
-use crate::style::{color_map_for_theme, THEME_NAMES};
+use crate::style::{THEME_NAMES, color_map_for_theme};
 
 /// Generate CSS string for a given theme, matching njord's create_sheet.py output.
 fn generate_css(theme_name: &str) -> String {
     let colors = color_map_for_theme(theme_name);
 
-    let nodta = colors.get("NODTA").and_then(|v| v.as_str()).unwrap_or("#000000");
-    let cursr = colors.get("CURSR").and_then(|v| v.as_str()).unwrap_or("#000000");
+    let nodta = colors
+        .get("NODTA")
+        .and_then(|v| v.as_str())
+        .unwrap_or("#000000");
+    let cursr = colors
+        .get("CURSR")
+        .and_then(|v| v.as_str())
+        .unwrap_or("#000000");
 
     let mut css = format!(
         "svg {{\n    background-color: {nodta};\n    color: {cursr};\n}}\n\
@@ -49,8 +55,10 @@ pub fn generate_themed_sprites(svg_source_dir: &Path, output_dir: &Path) {
 
             if path.extension().is_some_and(|ext| ext == "svg") {
                 let svg_content = fs::read_to_string(&path).expect("Failed to read SVG file");
-                let themed_svg =
-                    svg_content.replace("</svg>", &format!("<defs><style>{css}</style></defs></svg>"));
+                let themed_svg = svg_content.replace(
+                    "</svg>",
+                    &format!("<defs><style>{css}</style></defs></svg>"),
+                );
 
                 let dest = theme_dir.join(entry.file_name());
                 fs::write(&dest, themed_svg).expect("Failed to write themed SVG");

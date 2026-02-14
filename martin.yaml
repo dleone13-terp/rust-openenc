@@ -1,17 +1,27 @@
 styles:
   paths:
-    - /styles
+    - ./styles
 
 sprites:
   sources:
-    day: /sprites/day
-    dusk: /sprites/dusk
-    night: /sprites/night
+    day: ./sprites/day
+    dusk: ./sprites/dusk
+    night: ./sprites/night
 
 fonts:
-  paths:
-    - /fonts
+  - /fonts
+
+# Tile caching configuration for improved performance
+# Caches generated tiles to disk to avoid redundant database queries
+# cache:
+#   type: file
+#   path: ./tile_cache
+#   ttl: 86400  # 24 hours in seconds
+#   max_size: 10737418240  # 10GB in bytes
 
 databases:
   - name: encs
     connection_string: "postgres://user:password@host:port/database"
+    functions:
+      enc_mvt:
+        schema: public

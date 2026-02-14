@@ -101,6 +101,9 @@ impl LayerDef {
         cols.push_str("    sorind TEXT,\n");
         cols.push_str("    attributes JSONB,\n");
         cols.push_str("    geom GEOMETRY(GEOMETRY, 4326),\n");
+        cols.push_str("    geom_3857 GEOMETRY(GEOMETRY, 3857),\n");
+        cols.push_str("    min_zoom SMALLINT,\n");
+        cols.push_str("    max_zoom SMALLINT,\n");
         cols.push_str("    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n");
         cols.push_str(&format!(
             "    CONSTRAINT {}_unique_feature UNIQUE (enc_name, edition, update_number, feature_fid)\n",
@@ -110,11 +113,15 @@ impl LayerDef {
         format!("CREATE TABLE IF NOT EXISTS {} (\n{});", self.table, cols)
     }
 
-    /// Generate the 4 standard index DDL statements every layer table needs.
+    /// Generate indexes for layer table, including pre-computed columns for MVT optimization.
     pub fn create_indexes_sql(&self) -> Vec<String> {
         vec![
             format!(
                 "CREATE INDEX IF NOT EXISTS {0}_geom_idx ON {0} USING GIST(geom);",
+                self.table
+            ),
+            format!(
+                "CREATE INDEX IF NOT EXISTS {0}_geom_3857_idx ON {0} USING GIST(geom_3857);",
                 self.table
             ),
             format!(
@@ -129,11 +136,19 @@ impl LayerDef {
                 "CREATE INDEX IF NOT EXISTS {0}_compilation_scale_idx ON {0}(compilation_scale);",
                 self.table
             ),
+            format!(
+                "CREATE INDEX IF NOT EXISTS {0}_min_zoom_idx ON {0}(min_zoom) WHERE min_zoom IS NOT NULL;",
+                self.table
+            ),
+            format!(
+                "CREATE INDEX IF NOT EXISTS {0}_max_zoom_idx ON {0}(max_zoom) WHERE max_zoom IS NOT NULL;",
+                self.table
+            ),
         ]
     }
 
     /// Generate `CREATE OR REPLACE FUNCTION {table}_mvt(z, x, y)` PL/pgSQL function
-    /// with tile envelope and njord-style ZFinder zoom filtering.
+    /// optimized to use pre-computed geom_3857 and zoom columns.
     pub fn create_mvt_function_sql(&self) -> String {
         let layer_select_cols: String = self
             .columns
@@ -157,7 +172,7 @@ BEGIN
     FROM (
         SELECT
             ST_AsMVTGeom(
-                ST_Transform(d.geom, 3857),
+                d.geom_3857,
                 tile_env,
                 4096,
                 64,
@@ -175,9 +190,9 @@ BEGIN
         FROM {table} d
         WHERE
             d.geom && tile_env_4326
-            AND ST_IsValid(d.geom)
-            AND (28 - CEIL(LN(d.compilation_scale::double precision) / LN(2)))::int <= z
-            AND (d.scamin IS NULL OR (28 - CEIL(LN(d.scamin::double precision) / LN(2)))::int <= z)
+            AND d.geom_3857 IS NOT NULL
+            AND d.min_zoom <= z
+            AND (d.max_zoom IS NULL OR d.max_zoom <= z)
         ORDER BY d.compilation_scale DESC
     ) AS tile
     WHERE geom IS NOT NULL;
@@ -201,7 +216,7 @@ pub enum ColValue {
 /// Build the INSERT...ON CONFLICT upsert SQL for a layer definition.
 ///
 /// Column order: enc_name, feature_fid, edition, update_number, compilation_scale,
-/// scamin, objl, [layer-specific columns...], sordat, sorind, attributes, geom
+/// scamin, objl, [layer-specific columns...], sordat, sorind, attributes, geom, geom_3857, min_zoom, max_zoom
 pub fn build_upsert_sql(def: &LayerDef) -> String {
     let num_common_leading = 7; // enc_name, feature_fid, edition, update_number, compilation_scale, scamin, objl
     let num_layer = def.columns.len();
@@ -211,17 +226,29 @@ pub fn build_upsert_sql(def: &LayerDef) -> String {
     // Column names
     let layer_cols: Vec<&str> = def.columns.iter().map(|c| c.sql_column).collect();
     let all_cols = format!(
-        "enc_name, feature_fid, edition, update_number, compilation_scale, scamin, objl, {}, ac, lc, sy, sordat, sorind, attributes, geom",
+        "enc_name, feature_fid, edition, update_number, compilation_scale, scamin, objl, {}, ac, lc, sy, sordat, sorind, attributes, geom, geom_3857, min_zoom, max_zoom",
         layer_cols.join(", ")
     );
 
-    // Placeholders $1..$N, with geom wrapped in ST_Force2D(ST_SetSRID(ST_GeomFromGeoJSON(...), 4326))
-    // ST_Force2D strips Z coordinates to ensure 2D geometry (needed for SOUNDG features)
+    // Placeholders $1..$N
     let mut placeholders: Vec<String> = (1..total).map(|i| format!("${}", i)).collect();
-    placeholders.push(format!(
-        "ST_Force2D(ST_SetSRID(ST_GeomFromGeoJSON(${}), 4326))",
+
+    // geom: ST_MakeValid(ST_Force2D(ST_SetSRID(ST_GeomFromGeoJSON(...), 4326)))
+    let geom_expr = format!(
+        "ST_MakeValid(ST_Force2D(ST_SetSRID(ST_GeomFromGeoJSON(${}), 4326)))",
         total
-    ));
+    );
+    placeholders.push(geom_expr.clone());
+
+    // geom_3857: ST_Transform(geom, 3857)
+    placeholders.push(format!("ST_Transform({}, 3857)", geom_expr));
+
+    // min_zoom: 28 - CEIL(LN(GREATEST(compilation_scale, 1)) / LN(2))
+    placeholders
+        .push("(28 - CEIL(LN(GREATEST($5::double precision, 1)) / LN(2)))::smallint".to_string());
+
+    // max_zoom: 28 - CEIL(LN(GREATEST(scamin, 1)) / LN(2)) if scamin is not null, else null
+    placeholders.push("CASE WHEN $6 IS NOT NULL THEN (28 - CEIL(LN(GREATEST($6::double precision, 1)) / LN(2)))::smallint ELSE NULL END".to_string());
 
     // ON CONFLICT update set — everything except the conflict key columns
     let mut update_parts: Vec<String> = vec![
@@ -239,6 +266,9 @@ pub fn build_upsert_sql(def: &LayerDef) -> String {
     update_parts.push("sorind = EXCLUDED.sorind".to_string());
     update_parts.push("attributes = EXCLUDED.attributes".to_string());
     update_parts.push("geom = EXCLUDED.geom".to_string());
+    update_parts.push("geom_3857 = EXCLUDED.geom_3857".to_string());
+    update_parts.push("min_zoom = EXCLUDED.min_zoom".to_string());
+    update_parts.push("max_zoom = EXCLUDED.max_zoom".to_string());
 
     format!(
         "INSERT INTO {} ({}) VALUES ({}) ON CONFLICT (enc_name, edition, update_number, feature_fid) DO UPDATE SET {}",
@@ -257,7 +287,41 @@ pub fn extract_values(def: &LayerDef, typed: &Map<String, Value>) -> Vec<ColValu
             let val = typed.get(col.s57_field);
             match col.col_type {
                 ColType::Float => ColValue::Float(val.and_then(|v| v.as_f64())),
-                ColType::Int => ColValue::Int(val.and_then(|v| v.as_i64()).map(|v| v as i32)),
+                ColType::Int => {
+                    // Handle integers from various S-57 representations:
+                    // - Direct integer: 6
+                    // - Integer array: [6]
+                    // - String (S-57 StringList): "6"
+                    // - String array (S-57 StringList): ["6"]
+                    let int_val = val.and_then(|v| {
+                        // Try direct integer
+                        if let Some(i) = v.as_i64() {
+                            Some(i)
+                        }
+                        // Try array of integers (take first)
+                        else if let Some(arr) = v.as_array() {
+                            arr.first().and_then(|elem| {
+                                // Try as integer in array
+                                if let Some(i) = elem.as_i64() {
+                                    Some(i)
+                                }
+                                // Try as string in array (parse it)
+                                else if let Some(s) = elem.as_str() {
+                                    s.parse::<i64>().ok()
+                                } else {
+                                    None
+                                }
+                            })
+                        }
+                        // Try single string value (parse it)
+                        else if let Some(s) = v.as_str() {
+                            s.parse::<i64>().ok()
+                        } else {
+                            None
+                        }
+                    });
+                    ColValue::Int(int_val.map(|v| v as i32))
+                }
                 ColType::Text => {
                     ColValue::Text(val.and_then(|v| v.as_str()).map(|s| s.to_string()))
                 }
@@ -441,10 +505,7 @@ pub async fn process_layer(
             {
                 Ok(_) => count += 1,
                 Err(e) => {
-                    error!(
-                        "Failed to upsert {} feature {}: {}",
-                        def.s57_name, fid, e
-                    );
+                    error!("Failed to upsert {} feature {}: {}", def.s57_name, fid, e);
                     error_count += 1;
                 }
             }

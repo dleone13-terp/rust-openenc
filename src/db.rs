@@ -1,12 +1,17 @@
 use log::info;
 use sqlx::{PgPool, postgres::PgPoolOptions};
+use std::time::Duration;
 
 use crate::feature::LayerDef;
 use crate::s57::S57Metadata;
 
-pub async fn create_pool(db_url: &str) -> PgPool {
+pub async fn create_pool(db_url: &str, max_connections: u32, min_connections: u32) -> PgPool {
     PgPoolOptions::new()
-        .max_connections(10)
+        .max_connections(max_connections)
+        .min_connections(min_connections)
+        .acquire_timeout(Duration::from_secs(30)) // Allow time for connection acquisition
+        .idle_timeout(Duration::from_secs(600)) // 10 minutes idle timeout
+        .max_lifetime(Duration::from_secs(1800)) // 30 minutes max lifetime
         .connect(db_url)
         .await
         .expect("Failed to connect to database")
@@ -41,12 +46,104 @@ pub async fn ensure_layer_tables(pool: &PgPool) {
         sqlx::query(&def.create_mvt_function_sql())
             .execute(pool)
             .await
-            .unwrap_or_else(|e| {
-                panic!("Failed to create MVT function for {}: {}", def.table, e)
-            });
+            .unwrap_or_else(|e| panic!("Failed to create MVT function for {}: {}", def.table, e));
 
         info!("Ensured schema for table: {}", def.table);
     }
+
+    // Create unified MVT function that combines all layers
+    let unified_mvt_sql = create_unified_mvt_function_sql(&layers);
+    sqlx::query(&unified_mvt_sql)
+        .execute(pool)
+        .await
+        .expect("Failed to create unified MVT function");
+
+    info!("Created unified enc_mvt function");
+}
+
+/// Generate a unified MVT function that combines all feature layers into a single source
+fn create_unified_mvt_function_sql(layers: &[&LayerDef]) -> String {
+    let layer_mvts: Vec<String> = layers
+        .iter()
+        .map(|def| {
+            // Build layer-specific column list
+            let layer_select_cols: String = def
+                .columns
+                .iter()
+                .map(|c| format!(",\n                d.{}", c.sql_column))
+                .collect();
+
+            // Special handling for soundg: add depth unit conversions
+            let depth_conversions = if def.table == "soundg" {
+                r#",
+                FLOOR(d.depth)::INTEGER AS depth_meters_whole,
+                FLOOR((d.depth - FLOOR(d.depth)) * 10)::INTEGER AS depth_meters_tenths,
+                ROUND(d.depth * 3.28084)::INTEGER AS depth_feet,
+                FLOOR(d.depth / 1.8288)::INTEGER AS depth_fathoms,
+                ROUND((d.depth / 1.8288 - FLOOR(d.depth / 1.8288)) * 6)::INTEGER AS depth_fathoms_feet"#
+            } else {
+                ""
+            };
+
+            format!(
+                r#"COALESCE((SELECT ST_AsMVT(tile, '{table}', 4096, 'geom')
+        FROM (
+            SELECT
+                ST_AsMVTGeom(
+                    d.geom_3857,
+                    tile_env,
+                    4096,
+                    128,
+                    true
+                ) AS geom,
+                d.id,
+                d.enc_name,
+                d.objl{layer_cols},
+                d.ac AS "AC",
+                d.lc AS "LC",
+                d.sy AS "SY",
+                d.scamin,
+                d.sordat,
+                d.attributes{depth_conv}
+            FROM {table} d
+            WHERE
+                d.geom && tile_env_4326
+                AND d.geom_3857 IS NOT NULL
+                AND d.min_zoom <= z
+                AND (d.max_zoom IS NULL OR d.max_zoom <= z)
+            ORDER BY d.compilation_scale DESC
+        ) AS tile
+        WHERE geom IS NOT NULL), ''::bytea)"#,
+                table = def.table,
+                layer_cols = layer_select_cols,
+                depth_conv = depth_conversions,
+            )
+        })
+        .collect();
+
+    let mvt_concatenation = layer_mvts.join("\n    || ");
+
+    format!(
+        r#"CREATE OR REPLACE FUNCTION enc_mvt(z integer, x integer, y integer, query_params json DEFAULT '{{}}'::json)
+RETURNS bytea
+AS $$
+DECLARE
+    mvt bytea;
+    tile_env geometry;
+    tile_env_4326 geometry;
+BEGIN
+    tile_env := ST_TileEnvelope(z, x, y);
+    tile_env_4326 := ST_Transform(tile_env, 4326);
+
+    SELECT INTO mvt
+    {}
+    ;
+
+    RETURN mvt;
+END;
+$$ LANGUAGE plpgsql STABLE PARALLEL SAFE;"#,
+        mvt_concatenation
+    )
 }
 
 /// Insert or update enc_catalog row for a chart cell.
@@ -125,4 +222,25 @@ pub async fn update_catalog_coverage_fallback(
 
     sqlx::query(&sql).bind(enc_name).execute(pool).await?;
     Ok(())
+}
+
+/// Check if an ENC is already imported with the same edition and update number
+pub async fn is_enc_already_imported(
+    pool: &PgPool,
+    enc_name: &str,
+    edition: i32,
+    update_number: i32,
+) -> Result<bool, sqlx::Error> {
+    let result: Option<(i32, i32)> =
+        sqlx::query_as("SELECT edition, update_number FROM enc_catalog WHERE enc_name = $1")
+            .bind(enc_name)
+            .fetch_optional(pool)
+            .await?;
+
+    match result {
+        Some((existing_edition, existing_update)) => {
+            Ok(existing_edition == edition && existing_update == update_number)
+        }
+        None => Ok(false),
+    }
 }

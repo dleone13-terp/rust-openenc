@@ -26,8 +26,8 @@ RUN apt-get update && apt-get install -y \
    libxml2-dev \
    && rm -rf /var/lib/apt/lists/*
 
-# Install sqlx-cli using cargo
-RUN cargo install sqlx-cli --no-default-features --features postgres
+RUN apt-get update && apt-get install -y \
+   postgresql-client
 
 RUN wget https://github.com/OSGeo/gdal/archive/refs/tags/v${GDAL_VERSION}.tar.gz -O /tmp/gdal.tar.gz \
    && mkdir -p /tmp/gdal-src \
@@ -41,3 +41,10 @@ RUN wget https://github.com/OSGeo/gdal/archive/refs/tags/v${GDAL_VERSION}.tar.gz
    && ldconfig \
    && cd / \
    && rm -rf /tmp/gdal-src /tmp/gdal.tar.gz
+
+USER vscode
+
+
+# Install sqlx-cli using cargo
+RUN cargo install sqlx-cli --no-default-features --features postgres
+

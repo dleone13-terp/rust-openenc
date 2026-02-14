@@ -1,4 +1,4 @@
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use std::sync::LazyLock;
 
 use crate::feature::LayerDef;
@@ -8,7 +8,8 @@ use crate::feature::LayerDef;
 pub enum StyleLayerType {
     Fill,
     Line,
-    Symbol,
+    Icon,
+    Text,
 }
 
 /// Declarative description of one Mapbox GL style layer for a feature type.
@@ -21,6 +22,16 @@ pub struct StyleLayerDef {
     pub text_field: Option<&'static str>,
     /// Text size in pixels
     pub text_size: Option<f64>,
+    /// Text halo width in pixels
+    pub text_halo_width: Option<f64>,
+    /// Text halo color (hex string, e.g., "#FFFFFF")
+    pub text_halo_color: Option<&'static str>,
+    /// Text anchor position (e.g., "top", "center", "bottom-right")
+    pub text_anchor: Option<&'static str>,
+    /// Text offset [x, y] in ems
+    pub text_offset: Option<(f64, f64)>,
+    /// Use AC (area color) token for text color instead of fixed black
+    pub area_color_for_text: bool,
 }
 
 impl StyleLayerDef {
@@ -33,6 +44,11 @@ impl StyleLayerDef {
             line_width: None,
             text_field: None,
             text_size: None,
+            text_halo_width: None,
+            text_halo_color: None,
+            text_anchor: None,
+            text_offset: None,
+            area_color_for_text: false,
         }
     }
 
@@ -54,13 +70,42 @@ impl StyleLayerDef {
         self.text_size = Some(size);
         self
     }
+
+    /// Set text halo width
+    pub const fn with_text_halo(mut self, width: f64) -> Self {
+        self.text_halo_width = Some(width);
+        self
+    }
+
+    /// Set text halo color
+    pub const fn with_text_halo_color(mut self, color: &'static str) -> Self {
+        self.text_halo_color = Some(color);
+        self
+    }
+
+    /// Set text anchor position
+    pub const fn with_text_anchor(mut self, anchor: &'static str) -> Self {
+        self.text_anchor = Some(anchor);
+        self
+    }
+
+    /// Set text offset [x, y] in ems
+    pub const fn with_text_offset(mut self, x: f64, y: f64) -> Self {
+        self.text_offset = Some((x, y));
+        self
+    }
+
+    /// Use AC (area color) token for text color
+    pub const fn use_area_color_for_text(mut self) -> Self {
+        self.area_color_for_text = true;
+        self
+    }
 }
 
 pub const THEME_NAMES: &[&str] = &["day", "dusk", "night"];
 
-static COLORS_JSON: LazyLock<Value> = LazyLock::new(|| {
-    serde_json::from_str(include_str!("../colors.json")).unwrap()
-});
+static COLORS_JSON: LazyLock<Value> =
+    LazyLock::new(|| serde_json::from_str(include_str!("../colors.json")).unwrap());
 
 pub fn color_map_for_theme(theme_name: &str) -> &Map<String, Value> {
     COLORS_JSON["library"][theme_name.to_uppercase()]
@@ -80,7 +125,11 @@ fn build_case_expression(prop: &str, tokens: &[&str], colors: &Map<String, Value
     Value::Array(expr)
 }
 
-pub fn generate_style_json(layers: &[&LayerDef], theme_name: &str, tile_source_url: &str) -> String {
+pub fn generate_style_json(
+    layers: &[&LayerDef],
+    theme_name: &str,
+    tile_source_url: &str,
+) -> String {
     let colors = color_map_for_theme(theme_name);
 
     let mut style_layers: Vec<Value> = Vec::new();
@@ -90,7 +139,7 @@ pub fn generate_style_json(layers: &[&LayerDef], theme_name: &str, tile_source_u
             let id = format!("{}_{}", layer_def.table, sld.id_suffix);
             let mut layer = json!({
                 "id": id,
-                "source": layer_def.table,
+                "source": "enc",
                 "source-layer": layer_def.table,
             });
 
@@ -111,28 +160,54 @@ pub fn generate_style_json(layers: &[&LayerDef], theme_name: &str, tile_source_u
                     }
                     layer["paint"] = paint;
                 }
-                StyleLayerType::Symbol => {
+                StyleLayerType::Icon => {
                     layer["type"] = json!("symbol");
-                    let mut layout = json!({
+                    layer["layout"] = json!({
                         "icon-image": ["get", "SY"],
                     });
-                    
-                    // Add text-field if specified
+                }
+                StyleLayerType::Text => {
+                    layer["type"] = json!("symbol");
+                    let mut layout = json!({});
+
                     if let Some(text_field) = sld.text_field {
-                        layout["text-field"] = json!(["to-string", ["round", ["get", text_field]]]);
-                        layout["text-font"] = json!(["Open Sans Regular"]);
-                        layout["text-size"] = json!(sld.text_size.unwrap_or(12.0));
-                        layout["text-anchor"] = json!("top");
-                        layout["text-offset"] = json!([0.0, 0.5]);
-                        
+                        layout["text-field"] = json!(["to-string", ["get", text_field]]);
+
+                        // Standardized font for all text layers
+                        layout["text-font"] = json!(["Roboto Bold"]);
+
+                        // Other text styling comes from StyleLayerDef (configured in feature files)
+                        if let Some(size) = sld.text_size {
+                            layout["text-size"] = json!(size);
+                        }
+                        if let Some(anchor) = sld.text_anchor {
+                            layout["text-anchor"] = json!(anchor);
+                        }
+                        if let Some((x, y)) = sld.text_offset {
+                            layout["text-offset"] = json!([x, y]);
+                        }
+
                         // Add text paint properties
-                        layer["paint"] = json!({
-                            "text-color": "#000000",
-                            "text-halo-color": "#FFFFFF",
-                            "text-halo-width": 1.5,
+                        let text_color = if sld.area_color_for_text && !sld.colors.is_empty() {
+                            build_case_expression("AC", sld.colors, colors)
+                        } else {
+                            json!("#000000")
+                        };
+
+                        let mut paint = json!({
+                            "text-color": text_color,
                         });
+
+                        if let Some(halo_color) = sld.text_halo_color {
+                            paint["text-halo-color"] = json!(halo_color);
+                        }
+                        if let Some(halo_width) = sld.text_halo_width {
+                            paint["text-halo-width"] = json!(halo_width);
+                        }
+
+                        layer["paint"] = paint;
                     }
-                    
+
                     layer["layout"] = layout;
                 }
             }
@@ -142,15 +217,13 @@ pub fn generate_style_json(layers: &[&LayerDef], theme_name: &str, tile_source_u
     }
 
     let mut sources = serde_json::Map::new();
-    for layer_def in layers {
-        sources.insert(
-            layer_def.table.to_string(),
-            json!({
-                "type": "vector",
-                "tiles": [format!("{}/{}_mvt/{{z}}/{{x}}/{{y}}", tile_source_url, layer_def.table)],
-            }),
-        );
-    }
+    sources.insert(
+        "enc".to_string(),
+        json!({
+            "type": "vector",
+            "tiles": [format!("{}/enc_mvt/{{z}}/{{x}}/{{y}}", tile_source_url)],
+        }),
+    );
 
     let style = json!({
         "version": 8,

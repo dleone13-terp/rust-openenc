@@ -1,5 +1,5 @@
-use gdal::vector::LayerAccess;
 use gdal::Dataset;
+use gdal::vector::LayerAccess;
 use log::{debug, error, warn};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -110,7 +110,8 @@ pub fn extract_coverage_geojson(dataset: &Dataset) -> Option<String> {
     None
 }
 
-/// Find all S-57 files in an ENC directory (.000, .001, etc.)
+/// Find S-57 base files (.000) in an ENC directory.
+/// Update files (.001+) are automatically applied by GDAL when UPDATES=APPLY is set.
 pub fn find_s57_files(enc_dir: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
 
@@ -126,7 +127,8 @@ pub fn find_s57_files(enc_dir: &Path) -> Vec<PathBuf> {
         let path = entry.path();
         if path.is_file() {
             if let Some(ext) = path.extension().and_then(|v| v.to_str()) {
-                if ext.chars().all(|c| c.is_ascii_digit()) && ext.len() == 3 {
+                // Only process base files (.000) - GDAL auto-applies updates
+                if ext == "000" {
                     files.push(path);
                 }
             }
