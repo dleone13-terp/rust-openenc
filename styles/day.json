@@ -1,4 +1,8 @@
 {
+  "center": [
+    -122.3321,
+    47.6062
+  ],
   "glyphs": "http://localhost:3000/font/{fontstack}/{range}",
   "layers": [
     {
@@ -201,6 +205,8 @@
   "name": "openenc-day",
   "sources": {
     "enc": {
+      "maxzoom": 14,
+      "minzoom": 0,
       "tiles": [
         "http://localhost:3000/enc_mvt/{z}/{x}/{y}"
       ],
@@ -208,5 +214,6 @@
     }
   },
   "sprite": "http://localhost:3000/sprite/day",
-  "version": 8
+  "version": 8,
+  "zoom": 8
 }

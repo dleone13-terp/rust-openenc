@@ -88,6 +88,8 @@ for t in day dusk night; do
 done
 ```
 
+or ```./setup.sh```
+
 After generating the files, restart Martin. Styles are available at:
 - `http://localhost:3000/style/day`
 - `http://localhost:3000/style/dusk`

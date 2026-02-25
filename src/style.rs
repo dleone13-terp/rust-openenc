@@ -222,6 +222,8 @@ pub fn generate_style_json(
         json!({
             "type": "vector",
             "tiles": [format!("{}/enc_mvt/{{z}}/{{x}}/{{y}}", tile_source_url)],
+            "minzoom": 0,
+            "maxzoom": 14,
         }),
     );
 
@@ -230,6 +232,8 @@ pub fn generate_style_json(
         "name": format!("openenc-{}", theme_name),
         "sprite": format!("{}/sprite/{}", tile_source_url, theme_name),
         "glyphs": format!("{}/font/{{fontstack}}/{{range}}", tile_source_url),
+        "center": [-122.3321, 47.6062],
+        "zoom": 8,
         "sources": sources,
         "layers": style_layers,
     });
